@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "sparql-tsv"
+version = "0.1.0"
+description = "Query SPARQL endpoints and download results as TSV files"
+authors = ["s-nt-s <santos82h@gmail.com>"]
+license = "GPLv3"
+readme = "README.md"
+homepage = "https://github.com/s-nt-s/sparql-tsv"
+repository = "https://github.com/s-nt-s/sparql-tsv"
+keywords = ["sparql", "wikidata", "query", "tsv", "rdf"]
+classifiers = [
+    'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Information Analysis"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.11"
+
+[tool.poetry.scripts]
+sparql-tsv = "sparql_tsv.cli:main"
+
+[build-system]
+requires = ["poetry-core>=1.8.2"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/s-nt-s/sparql-tsv/issues"
