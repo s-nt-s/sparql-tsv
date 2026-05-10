@@ -167,6 +167,21 @@ def _getPositive(x, default=None):
     return x
 
 
+def _isKo(
+    row: tuple[str, ...],
+    size: int,
+    match: Optional[tuple[re.Pattern, ...]] = None
+):
+    if len(row) != size:
+        return False
+    if match is None:
+        return True
+    for r, v in zip(match, row):
+        if not r.match(v):
+            return False
+    return True
+
+
 class SparqlTsv:
     """Client for querying SPARQL endpoints and downloading results as TSV.
 
@@ -217,7 +232,12 @@ class SparqlTsv:
         )
         self.__max_retries = _getPositive(max_retries, 1)
 
-    def dwn(self, query_or_file: str | Path, header: bool = False):
+    def dwn(
+        self,
+        query_or_file: str | Path,
+        header: bool = False,
+        match: Optional[tuple[re.Pattern, ...]] = None
+    ):
         """Download SPARQL query results as TSV file.
 
         Executes a SPARQL query and saves results to a TSV file. If a Path object
@@ -225,13 +245,14 @@ class SparqlTsv:
 
         Args:
             query_or_file: Either a SPARQL query string or path to a query file.
-            header: If True, include header row with variable names in output.
+            header: If True, include header row with variable names in output
+            match: regular expressions that the fields must match
 
         Returns:
             Path to the TSV file created/updated.
         """
         query = _get_content(query_or_file)
-        tmp = self.__dwn(query, header=header)
+        tmp = self.__dwn(query, header=header, match=match)
         if not isinstance(query_or_file, Path):
             return tmp
         out = f"{query_or_file}.tsv"
@@ -239,7 +260,11 @@ class SparqlTsv:
         rename(tmp, out)
         return out
 
-    def __dwn(self, query: str, header: bool = False):
+    def __dwn(
+        self, query: str,
+        header: bool = False,
+        match: Optional[tuple[re.Pattern, ...]] = None
+    ):
         with NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
@@ -248,7 +273,7 @@ class SparqlTsv:
         ) as tmp:
             logger.debug(f"Writting in {tmp.name}")
             try:
-                gen = self.query(query, header=header)
+                gen = self.query(query, header=header, match=match)
                 head = next(gen, None)
                 if head:
                     tmp.write("\t".join(head))
@@ -261,7 +286,12 @@ class SparqlTsv:
                 raise
             return tmp.name
 
-    def query(self, query_or_file: str, header: bool = False):
+    def query(
+        self,
+        query_or_file: str,
+        header: bool = False,
+        match: Optional[tuple[re.Pattern, ...]] = None
+    ):
         """Execute a SPARQL query and yield results.
 
         Executes a SPARQL query against the endpoint and yields results as tuples
@@ -270,6 +300,7 @@ class SparqlTsv:
         Args:
             query_or_file: Either a SPARQL query string or path to a query file.
             header: If True, yield header (variable names) as first result.
+            match: regular expressions that the fields must match
 
         Yields:
             Tuples of values for each result row. First yield is header if requested.
@@ -288,6 +319,7 @@ class SparqlTsv:
         total_count = 0
         main_head = None
         page_size = self.__page_size
+        columns = 0
 
         while True:
             page += 1
@@ -306,6 +338,9 @@ class SparqlTsv:
                 break
             if page == 1:
                 main_head = head
+                columns = len(main_head)
+                if match and columns != len(match):
+                    raise ValueError(f"len(match) == {len(match)} != {columns} columns")
                 if header:
                     yield head
             elif main_head != head:
@@ -313,7 +348,7 @@ class SparqlTsv:
             count = 0
             ko_row = 0
             for row in reader:
-                if len(main_head) != len(row):
+                if _isKo(row, columns, match):
                     ko_row = ko_row + 1
                     logger.warning(f"Skipping bad row: {row}")
                     continue
@@ -325,7 +360,7 @@ class SparqlTsv:
             if self.__max_page_size < max_size:
                 logger.debug(f"{self.__endpoint} max_page_size={max_size}")
                 self.__max_page_size = max_size
-            if (count + ko_row) < (page_size or self.__max_page_size):
+            if ko_row == 0 and (count < (page_size or self.__max_page_size)):
                 break
             offset += count
 
