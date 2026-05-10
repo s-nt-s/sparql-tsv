@@ -311,7 +311,12 @@ class SparqlTsv:
             elif main_head != head:
                 raise SparqlTsvError(0, f"{main_head} != {head}")
             count = 0
+            ko_row = 0
             for row in reader:
+                if len(main_head) != len(row):
+                    ko_row = ko_row + 1
+                    logger.warning(f"Skipping bad row: {row}")
+                    continue
                 count += 1
                 yield row
             total_count = total_count + count
@@ -320,7 +325,7 @@ class SparqlTsv:
             if self.__max_page_size < max_size:
                 logger.debug(f"{self.__endpoint} max_page_size={max_size}")
                 self.__max_page_size = max_size
-            if count < (page_size or self.__max_page_size):
+            if (count + ko_row) < (page_size or self.__max_page_size):
                 break
             offset += count
 
