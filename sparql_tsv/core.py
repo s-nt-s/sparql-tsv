@@ -167,7 +167,7 @@ def _getPositive(x, default=None):
     return x
 
 
-def _isKo(
+def _isOk(
     row: tuple[str, ...],
     size: int,
     match: Optional[tuple[re.Pattern, ...]] = None
@@ -332,7 +332,9 @@ class SparqlTsv:
                 p_query = query + "\n" + "\n".join(tail)
             else:
                 p_query = str(query)
-            reader = self.__yield_page(p_query)
+            reader = self.__yield_page(
+                p_query
+            )
             head = next(reader, None)
             if head is None:
                 break
@@ -348,7 +350,7 @@ class SparqlTsv:
             count = 0
             ko_row = 0
             for row in reader:
-                if _isKo(row, columns, match):
+                if not _isOk(row, columns, match):
                     ko_row = ko_row + 1
                     logger.warning(f"Skipping bad row: {row}")
                     continue
