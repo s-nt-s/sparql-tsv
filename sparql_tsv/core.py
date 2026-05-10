@@ -357,12 +357,12 @@ class SparqlTsv:
                 count += 1
                 yield row
             total_count = total_count + count
-            logger.debug(f"page={page} rows={count} {' '.join(tail)}".rstrip())
+            logger.debug(f"page={page} rows={count} ko={ko_row} {' '.join(tail)}".rstrip())
             max_size = max(count, self.__max_page_size)
             if self.__max_page_size < max_size:
                 logger.debug(f"{self.__endpoint} max_page_size={max_size}")
                 self.__max_page_size = max_size
-            if ko_row == 0 and (count < (page_size or self.__max_page_size)):
+            if count == 0 or (ko_row == 0 and (count < (page_size or self.__max_page_size))):
                 break
             offset += count
 
