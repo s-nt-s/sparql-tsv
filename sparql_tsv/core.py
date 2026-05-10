@@ -55,6 +55,11 @@ class SparqlTsvError(Exception):
         return f"[{self.__code}] {self.__msg}"
 
 
+class UnexpectedHeadError(SparqlTsvError):
+    def __init__(self, msg: str):
+        super().__init__(0, msg)
+
+
 class QueryEmptyError(SparqlTsvError):
     """Exception raised when a query is empty."""
     def __init__(self, query: Optional[str] = None):
@@ -156,7 +161,7 @@ def _getCode(e: Exception):
         return "UrlOpen"
     if isinstance(e, IncompleteRead):
         return "IncompleteRead"
-    return 0
+    return None
 
 
 def _getPositive(x, default=None):
@@ -170,15 +175,12 @@ def _getPositive(x, default=None):
 def _isOk(
     row: tuple[str, ...],
     size: int,
-    match: Optional[tuple[re.Pattern, ...]] = None
+    rgx: Optional[re.Pattern] = None
 ):
     if len(row) != size:
         return False
-    if match is None:
-        return True
-    for r, v in zip(match, row):
-        if not r.match(v):
-            return False
+    if rgx and not rgx.match("\t".join(row)):
+        return False
     return True
 
 
@@ -236,7 +238,7 @@ class SparqlTsv:
         self,
         query_or_file: str | Path,
         header: bool = False,
-        match: Optional[tuple[re.Pattern, ...]] = None
+        match: Optional[re.Pattern] = None
     ):
         """Download SPARQL query results as TSV file.
 
@@ -246,7 +248,7 @@ class SparqlTsv:
         Args:
             query_or_file: Either a SPARQL query string or path to a query file.
             header: If True, include header row with variable names in output
-            match: regular expressions that the fields must match
+            match: regular expression that each tsv-line must match
 
         Returns:
             Path to the TSV file created/updated.
@@ -263,7 +265,7 @@ class SparqlTsv:
     def __dwn(
         self, query: str,
         header: bool = False,
-        match: Optional[tuple[re.Pattern, ...]] = None
+        match: Optional[re.Pattern] = None
     ):
         with NamedTemporaryFile(
             mode="w",
@@ -290,7 +292,7 @@ class SparqlTsv:
         self,
         query_or_file: str,
         header: bool = False,
-        match: Optional[tuple[re.Pattern, ...]] = None
+        match: Optional[re.Pattern] = None
     ):
         """Execute a SPARQL query and yield results.
 
@@ -300,7 +302,7 @@ class SparqlTsv:
         Args:
             query_or_file: Either a SPARQL query string or path to a query file.
             header: If True, yield header (variable names) as first result.
-            match: regular expressions that the fields must match
+            match: regular expression that each tsv-line must match
 
         Yields:
             Tuples of values for each result row. First yield is header if requested.
@@ -333,20 +335,17 @@ class SparqlTsv:
             else:
                 p_query = str(query)
             reader = self.__yield_page(
-                p_query
+                p_query,
+                ok_header=main_head
             )
             head = next(reader, None)
             if head is None:
                 break
-            if page == 1:
+            if main_head is None:
                 main_head = head
                 columns = len(main_head)
-                if match and columns != len(match):
-                    raise ValueError(f"len(match) == {len(match)} != {columns} columns")
                 if header:
                     yield head
-            elif main_head != head:
-                raise SparqlTsvError(0, f"{main_head} != {head}")
             count = 0
             ko_row = 0
             for row in reader:
@@ -368,7 +367,11 @@ class SparqlTsv:
 
         logger.debug(f"total_rows={total_count}")
 
-    def __yield_page(self, query: str):
+    def __yield_page(
+        self,
+        query: str,
+        ok_header: Optional[tuple[str, ...]] = None
+    ):
         max_retries = max(1, self.__max_retries)
         for attempt in range(1, max_retries+1):
             try:
@@ -386,7 +389,9 @@ class SparqlTsv:
                         if first_line is not None:
                             head = tuple(map(_parse_head, first_line))
                             if len(head) == 0 or '' in head:
-                                raise SparqlTsvError(0, head)
+                                raise UnexpectedHeadError(0, head)
+                            if ok_header is not None and ok_header != head:
+                                raise UnexpectedHeadError(0, f"{head} != {ok_header}")
                             yield head
                             for row in reader:
                                 val = tuple(map(_parse, row))
@@ -400,7 +405,7 @@ class SparqlTsv:
                     sleep(wait)
                     continue
                 if code is not None:
-                    logger.critical(f"HTTP ERROR {code}")
+                    logger.critical(f"[{code}] HTTP ERROR")
                 logger.critical(query)
                 raise
             break
