@@ -13,6 +13,7 @@ from typing import Optional, Any
 from tempfile import NamedTemporaryFile
 from os import fsync, unlink, rename
 from pathlib import Path
+from http.client import IncompleteRead
 
 
 logger = logging.getLogger(__name__)
@@ -153,6 +154,8 @@ def _getCode(e: Exception):
             return e.reason.errno
     if isinstance(e, URLError):
         return "UrlOpen"
+    if isinstance(e, IncompleteRead):
+        return "IncompleteRead"
     return 0
 
 
@@ -181,6 +184,7 @@ class SparqlTsv:
             503: 60,
             504: 60,
             101: 60,
+            "IncompleteRead": 60,
         },
         max_retries=10,
         page_size: Optional[int] = None,
