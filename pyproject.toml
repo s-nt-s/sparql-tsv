@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sparql-tsv"
-version = "0.1.1"
+version = "0.1.2"
 description = "Query SPARQL endpoints and download results as TSV files"
 authors = ["s-nt-s <santos82h@gmail.com>"]
 license = "GPLv3"
