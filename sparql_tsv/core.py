@@ -354,7 +354,7 @@ class SparqlTsv:
                 code = _getCode(e)
                 wait = (self.__wait_if_status or {}).get(code, 0)
                 if attempt < max_retries and wait > 0:
-                    logger.warning(f"[{e.code}] attempt={attempt}/{max_retries} wait={wait}")
+                    logger.warning(f"[{code}] attempt={attempt}/{max_retries} wait={wait}")
                     sleep(wait)
                     continue
                 if code is not None:
